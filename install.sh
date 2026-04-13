@@ -5,6 +5,12 @@ set -e
 #  aether-node installer
 #  Installs the Aether node agent + Xray-core
 #  Tested on: Ubuntu 22.04 / Debian 12
+#
+#  Usage (defaults):
+#    curl -fsSL https://raw.githubusercontent.com/devmhm-eng/aether-node/main/install.sh | sudo bash
+#
+#  Usage (custom port/key):
+#    PORT=3000 API_KEY=mysecret bash <(curl -fsSL ...)
 # ──────────────────────────────────────────────
 
 INSTALL_DIR="/opt/aether-node"
@@ -16,24 +22,21 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ── Root check ──────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
   error "Run as root: sudo bash install.sh"
 fi
 
-# ── Collect inputs ───────────────────────────────
-read -rp "Enter the port for aether-node to listen on [2096]: " PORT
+# ── Config (env overrides or auto-defaults) ──────
 PORT="${PORT:-2096}"
+API_KEY="${API_KEY:-$(openssl rand -hex 32)}"
 
-read -rp "Enter the API key (leave blank to auto-generate): " API_KEY
-if [ -z "$API_KEY" ]; then
-  API_KEY=$(openssl rand -hex 32)
-  info "Generated API key: $API_KEY"
-fi
+info "Port    : $PORT"
+info "API Key : $API_KEY"
 
 # ── Install dependencies ─────────────────────────
 info "Updating package list..."
@@ -55,9 +58,10 @@ info "Xray binary: $XRAY_BIN"
 
 # ── Clone / update aether-node ───────────────────
 info "Installing aether-node to $INSTALL_DIR..."
-if [ -d "$INSTALL_DIR" ]; then
+if [ -d "$INSTALL_DIR/.git" ]; then
   cd "$INSTALL_DIR" && git pull --quiet
 else
+  rm -rf "$INSTALL_DIR"
   git clone --quiet https://github.com/devmhm-eng/aether-node.git "$INSTALL_DIR"
 fi
 
@@ -66,19 +70,19 @@ npm install --omit=dev --quiet
 npm run build --quiet
 
 # ── Write .env ───────────────────────────────────
-cat > "$INSTALL_DIR/.env" <<EOF
+cat > "$INSTALL_DIR/.env" <<ENVEOF
 PORT=$PORT
 API_KEY=$API_KEY
 XRAY_EXECUTABLE=$XRAY_BIN
 XRAY_CONFIG_PATH=/etc/xray/config.json
 XRAY_LOG_DIR=/var/log/xray
 LOG_TAIL_LINES=200
-EOF
+ENVEOF
 
 info ".env written."
 
 # ── Create systemd service ────────────────────────
-cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
+cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<SVCEOF
 [Unit]
 Description=Aether Node Agent
 After=network.target
@@ -94,19 +98,21 @@ EnvironmentFile=$INSTALL_DIR/.env
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
 
+# ── Done ─────────────────────────────────────────
+NODE_IP=$(hostname -I | awk '{print $1}')
 info "──────────────────────────────────────────────"
 info "aether-node installed and running!"
 info ""
-info "  Node agent URL:  http://$(hostname -I | awk '{print $1}'):${PORT}"
-info "  API Key:         $API_KEY"
+info "  Node agent URL : http://${NODE_IP}:${PORT}"
+info "  API Key        : $API_KEY"
 info ""
 info "Add this node in your Aether panel with the above address and API key."
 info ""
-info "  Status:  systemctl status $SERVICE_NAME"
-info "  Logs:    journalctl -u $SERVICE_NAME -f"
+info "  Status : systemctl status $SERVICE_NAME"
+info "  Logs   : journalctl -u $SERVICE_NAME -f"
 info "──────────────────────────────────────────────"
