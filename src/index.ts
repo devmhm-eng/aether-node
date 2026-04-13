@@ -6,6 +6,7 @@ import { healthRouter } from "./routes/health";
 import { configRouter } from "./routes/config";
 import { statsRouter } from "./routes/stats";
 import { logsRouter } from "./routes/logs";
+import { trafficRouter } from "./routes/traffic";
 
 const config = loadConfig();
 const xray = new XrayManager(config);
@@ -20,6 +21,7 @@ app.use("/health", healthRouter(xray));
 app.use("/api/config", authMiddleware(config.apiKey), configRouter(xray));
 app.use("/api/stats", authMiddleware(config.apiKey), statsRouter(xray));
 app.use("/api/logs", authMiddleware(config.apiKey), logsRouter(xray));
+app.use("/api/stats/traffic", authMiddleware(config.apiKey), trafficRouter());
 
 app.post(
   "/api/restart",

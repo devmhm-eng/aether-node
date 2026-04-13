@@ -11,6 +11,7 @@ const health_1 = require("./routes/health");
 const config_2 = require("./routes/config");
 const stats_1 = require("./routes/stats");
 const logs_1 = require("./routes/logs");
+const traffic_1 = require("./routes/traffic");
 const config = (0, config_1.loadConfig)();
 const xray = new xray_1.XrayManager(config);
 const app = (0, express_1.default)();
@@ -21,6 +22,7 @@ app.use("/health", (0, health_1.healthRouter)(xray));
 app.use("/api/config", (0, auth_1.authMiddleware)(config.apiKey), (0, config_2.configRouter)(xray));
 app.use("/api/stats", (0, auth_1.authMiddleware)(config.apiKey), (0, stats_1.statsRouter)(xray));
 app.use("/api/logs", (0, auth_1.authMiddleware)(config.apiKey), (0, logs_1.logsRouter)(xray));
+app.use("/api/stats/traffic", (0, auth_1.authMiddleware)(config.apiKey), (0, traffic_1.trafficRouter)());
 app.post("/api/restart", (0, auth_1.authMiddleware)(config.apiKey), (_req, res) => {
     xray.restart();
     res.json({ success: true, message: "Xray restart initiated." });
