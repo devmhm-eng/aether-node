@@ -64,8 +64,9 @@ else
 fi
 
 cd "$INSTALL_DIR"
-npm install --omit=dev --quiet
+npm install --quiet
 npm run build --quiet
+npm prune --omit=dev --quiet
 
 # Write .env
 cat > "$INSTALL_DIR/.env" << ENVEOF
